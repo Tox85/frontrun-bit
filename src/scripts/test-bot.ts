@@ -28,7 +28,29 @@ class MockBotTester {
       targetUrl: 'https://feed.bithumb.com/notice?category=9&page=1',
       useProxy: false,
       logLevel: 'debug',
-      logFormat: 'text'
+      logFormat: 'text',
+      trading: {
+        liveMode: false,
+        tradingBudget: 0,
+        leverage: 1,
+        stopLossPercent: 3,
+        takeProfitPercent: 0,
+        maxHoldTimeMs: 180000,
+        timeBeforeExecutionSec: 0,
+        quoteCurrencies: ['USDT', 'USDC'],
+        exchanges: {
+          bybit: {
+            enabled: false,
+            id: 'bybit',
+            credentials: {}
+          },
+          hyperliquid: {
+            enabled: false,
+            id: 'hyperliquid',
+            credentials: {}
+          }
+        }
+      }
     };
 
     this.logger = new Logger(this.config);

@@ -13,11 +13,18 @@ export class AnnouncementAnalyzer {
 
     // Expression régulière pour capturer le contenu entre parenthèses
     const match = title.match(/\(([^)]+)\)/);
-    
+
     if (match && match[1]) {
-      return match[1].trim();
+      const extracted = match[1].trim();
+
+      // Gérer les parenthèses mal formées ou imbriquées
+      if (extracted.includes('(') || extracted.includes(')')) {
+        return '';
+      }
+
+      return extracted;
     }
-    
+
     return null;
   }
 
@@ -56,18 +63,24 @@ export class AnnouncementAnalyzer {
 
     const newAnnouncements: Announcement[] = [];
     
+    let foundLastSeen = false;
+
     for (const announcement of currentAnnouncements) {
       if (announcement.id === lastSeenId) {
-        // On a atteint le dernier ID vu, on s'arrête
+        foundLastSeen = true;
         break;
       }
-      
+
       // Vérifier que c'est bien un ajout de marché
       if (this.isMarketAddition(announcement.title)) {
         newAnnouncements.push(announcement);
       }
     }
-    
+
+    if (!foundLastSeen) {
+      return [];
+    }
+
     return newAnnouncements;
   }
 
