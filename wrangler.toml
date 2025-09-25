@@ -1,0 +1,22 @@
+name = "bithumb-proxy"
+main = "worker.js"
+compatibility_date = "2024-01-15"
+
+[env.production]
+name = "bithumb-proxy"
+
+[env.staging]
+name = "bithumb-proxy-staging"
+
+# Configuration des routes (optionnel)
+# routes = [
+#   { pattern = "bithumb-proxy.your-domain.com/*", zone_name = "your-domain.com" }
+# ]
+
+# Configuration des variables d'environnement (optionnel)
+# [env.production.vars]
+# CACHE_TTL = "0"
+
+# Configuration des limites
+[limits]
+cpu_ms = 50
