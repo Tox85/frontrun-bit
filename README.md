@@ -1,6 +1,20 @@
 # BithumbBot - Bot de Détection Ultra-Rapide
 
-Bot TypeScript ultra-rapide pour détecter les nouvelles annonces de listing de tokens sur Bithumb et envoyer des notifications Telegram instantanées.
+Bot de frontrunning spécialisé dans la détection des nouveaux listings coréens via Bithumb, avec architecture T0 (annonce) + T2 (ouverture) et exécution Hyperliquid testnet.
+
+🎯 Objectif
+Détecter en temps réel les nouveaux listings KRW sur Bithumb et exécuter des trades automatiques sur Hyperliquid testnet avec sortie automatique après 3 minutes.
+
+🏗️ Architecture
+Sources de Détection
+T0 (Annonce): Bithumb NoticePoller HTTP (500-800ms, ETag/If-Modified-Since)
+T2 (Ouverture): Bithumb WebSocket KRW avec double-check REST anti-faux positifs
+Composants Principaux
+SingletonGuard: Instance unique leader/observateur
+TokenRegistry: Gestion baseline KR et événements
+PerpCatalog: Catalogue perpétuels Bybit→HL→Binance
+TelegramService: Notifications avec queue et retry_after
+HttpServer: Endpoints /health, /metrics, /baseline, /whoami
 
 ## 🚀 Fonctionnalités
 
