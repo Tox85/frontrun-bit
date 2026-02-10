@@ -21,6 +21,8 @@ HttpServer: Endpoints /health, /metrics, /baseline, /whoami
 - **Détection ultra-rapide** : Polling toutes les 200-400ms pour une latence < 1 seconde
 - **Extraction automatique** : Extraction du symbole de token depuis le titre de l'annonce
 - **Notifications Telegram** : Alertes instantanées avec horodatage précis
+- **Trading perpétuel** : Exécution rapide sur Bybit ou HyperLiquid via CCXT
+- **Compte à rebours configurable** : Délai avant exécution pour synchroniser les entrées
 - **Mesures de performance** : Monitoring des latences et métriques détaillées
 - **Contournement Cloudflare** : Support des proxies et cloudflare-scraper
 - **Architecture modulaire** : Code organisé en modules réutilisables
@@ -149,12 +151,38 @@ src/
 | `PROXY_URL` | URL du proxy | - |
 | `LOG_LEVEL` | Niveau de log (debug/info/warn/error) | `info` |
 | `LOG_FORMAT` | Format de log (text/json) | `text` |
+| `LIVE_MODE` | Active le trading live (sinon simulation) | `false` |
+| `TRADING_BUDGET` | Budget par trade (quote currency) | `0` |
+| `LEVERAGE` | Levier appliqué sur le budget | `1` |
+| `STOP_LOSS_PERCENT` | Pourcentage de stop-loss (utilisé pour le monitoring) | `3` |
+| `TAKE_PROFIT_PERCENT` | Pourcentage de take-profit (optionnel) | `0` |
+| `MAX_HOLD_TIME_MS` | Durée max avant fermeture (ms) | `180000` |
+| `TIME_BEFORE_EXECUTION` | Compte à rebours avant exécution (s) | `0` |
+| `QUOTE_CURRENCIES` | Devises quote supportées pour les perps | `USDT,USDC` |
+| `ENABLE_BYBIT` | Active l'exchange Bybit | `true` |
+| `BYBIT_API_KEY` | Clé API Bybit (live) | - |
+| `BYBIT_API_SECRET` | Secret API Bybit (live) | - |
+| `ENABLE_HYPERLIQUID` | Active l'exchange HyperLiquid | `true` |
+| `HYPERLIQUID_API_KEY` | Clé API HyperLiquid | - |
+| `HYPERLIQUID_API_SECRET` | Secret HyperLiquid | - |
+| `HYPERLIQUID_PASSWORD` | Mot de passe/phrase secrète HyperLiquid | - |
 
 ### Optimisations
 
 - **POLL_MS** : Réduire pour plus de réactivité (min: 100ms)
 - **USE_PROXY** : Activer pour contourner Cloudflare
 - **LOG_FORMAT** : Utiliser "json" pour l'analyse des logs
+- **TRADING_BUDGET** : Augmenter pour des positions plus importantes
+- **TIME_BEFORE_EXECUTION** : Ajuster pour synchroniser avec l'ouverture officielle
+- **QUOTE_CURRENCIES** : Adapter à la devise de cotation ciblée
+
+### Trading perpétuel (Bybit & HyperLiquid)
+
+- Les comptes API doivent autoriser les dérivés/perpétuels
+- `LIVE_MODE=false` permet de tester en simulation (aucun ordre réel)
+- `TIME_BEFORE_EXECUTION` déclenche un compte à rebours logué avant l'envoi d'ordre
+- Les positions sont automatiquement clôturées après `MAX_HOLD_TIME_MS`
+- Les logs incluent prix d'entrée, prix de sortie et performance (profit & %)
 
 ## 📈 Monitoring
 

@@ -1,0 +1,33 @@
+# Propositions d'optimisation et d'analyse des retards
+
+1. **Latence du proxy Cloudflare Worker (~3 req/s)**  
+   - Limiter les aller-retours en regroupant plusieurs URL dans une seule réponse (page HTML + JSON `/_next/data`).  
+   - Ajouter un cache en mémoire côté bot pour éviter de recharger les assets statiques à chaque cycle.
+
+2. **Handshakes HTTP répétitifs**  
+   - Activer `http.Agent({ keepAlive: true })` sur Axios afin de conserver les connexions TCP ouvertes.  
+   - Pré-résoudre l’adresse IP du worker et du site cible pour éviter le DNS lookup sur chaque cycle.
+
+3. **Parsing HTML coûteux**  
+   - Préférer l’API JSON Next.js (`/_next/data/.../notice.json`) qui supprime l’étape Cheerio lorsque le buildId est connu.  
+   - Mettre en cache le `buildId` et ne le rafraîchir qu’en cas d’erreur 404 afin d’éviter la requête initiale.
+
+4. **Boucle de polling séquentielle**  
+   - Démarrer la récupération et l’analyse en parallèle (`Promise.all`) pour gagner ~50-80ms par cycle.  
+   - Déduire dynamiquement `pollMs` de la latence moyenne mesurée pour rester au plus proche des 300ms configurés.
+
+5. **Disponibilité tardive des données**  
+   - Ajouter un mode "pré-scraping" qui déclenche un HEAD/If-Modified-Since toutes les 100ms afin d’être notifié dès que la page change.  
+   - Tester un CDN local (Railway Redis) pour stocker le dernier snapshot et ne transférer que les diff JSON (delta encoding).
+
+6. **Traitement post-détection**  
+   - Déporter les notifications Telegram et le trading dans des workers (queue) pour que la boucle principale reprenne immédiatement.  
+   - Logger systématiquement `fetchLatency`, `parseLatency` et `telegramLatency` pour identifier les goulots en production.
+
+7. **Synchronisation Worker → Bot**  
+   - Augmenter la fenêtre de préchargement côté Worker (preload du `buildManifest`), et compresser la réponse (gzip/br) pour réduire le temps réseau.  
+   - Ajouter un endpoint WebSocket ou SSE sur le Worker pour "pousser" les nouvelles annonces vers Railway au lieu de polling.
+
+8. **Trade-off de robustesse**  
+   - Sauvegarder `lastSeenId` dans un stockage persistant (Redis ou fichier) pour redémarrer sans perte si Railway se relance.  
+   - Implémenter une détection de dérive horaire (clock skew) pour corriger les `announce_delay_ms` et comparer les cycles.

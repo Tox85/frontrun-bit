@@ -1,4 +1,4 @@
-import { DetectionEvent, DetectionMetrics, BotConfig } from '../types';
+import { DetectionEvent, DetectionMetrics, BotConfig, TradeExecutionDetails } from '../types';
 
 export enum LogLevel {
   DEBUG = 0,
@@ -149,6 +149,10 @@ export class Logger {
     this.info(`🔧 Proxy: ${config.useProxy ? 'Activé' : 'Désactivé'}`);
     this.info(`📝 Format de log: ${config.logFormat}`);
     this.info(`📊 Niveau de log: ${config.logLevel}`);
+    this.info(`💹 Mode trading: ${config.trading.liveMode ? 'LIVE' : 'PAPER'}`);
+    this.info(`💰 Budget trading: ${config.trading.tradingBudget}`);
+    this.info(`⚖️ Levier: x${config.trading.leverage}`);
+    this.info(`⏳ Délai avant exécution: ${config.trading.timeBeforeExecutionSec}s`);
   }
 
   /**
@@ -200,6 +204,142 @@ export class Logger {
       } else {
         console.log(formattedMessage);
       }
+    }
+  }
+
+  /**
+   * Log l'initiation d'un compte à rebours avant exécution.
+   */
+  logTradeCountdownStart(symbol: string, seconds: number): void {
+    const payload = {
+      timestamp: new Date().toISOString(),
+      event: 'TRADE_COUNTDOWN_START',
+      symbol,
+      seconds
+    };
+
+    if (this.isJsonFormat) {
+      console.log(JSON.stringify(payload));
+    } else {
+      this.info(`⏳ Compte à rebours (${seconds}s) avant exécution pour ${symbol}`);
+    }
+  }
+
+  /**
+   * Log un tick de compte à rebours.
+   */
+  logTradeCountdownTick(symbol: string, remaining: number): void {
+    if (remaining <= 0) {
+      return;
+    }
+
+    if (this.isJsonFormat) {
+      console.log(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        event: 'TRADE_COUNTDOWN_TICK',
+        symbol,
+        remaining
+      }));
+    } else {
+      this.debug(`⏳ ${symbol} - ${remaining}s avant exécution`);
+    }
+  }
+
+  /**
+   * Log la fin du compte à rebours.
+   */
+  logTradeCountdownEnd(symbol: string): void {
+    if (this.isJsonFormat) {
+      console.log(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        event: 'TRADE_COUNTDOWN_END',
+        symbol
+      }));
+    } else {
+      this.info(`🚀 Compte à rebours terminé pour ${symbol}, exécution imminente`);
+    }
+  }
+
+  /**
+   * Log une tentative de trade (avant exécution).
+   */
+  logTradeAttempt(trade: TradeExecutionDetails): void {
+    const payload = {
+      timestamp: new Date().toISOString(),
+      event: 'TRADE_ATTEMPT',
+      ...trade
+    };
+
+    if (this.isJsonFormat) {
+      console.log(JSON.stringify(payload));
+    } else {
+      this.info(`🎯 Tentative d'exécution sur ${trade.exchange} (${trade.marketSymbol})`, {
+        montant: trade.amount,
+        prix: trade.entryPrice,
+        mode: trade.mode
+      });
+    }
+  }
+
+  /**
+   * Log l'entrée en position.
+   */
+  logTradeEntry(trade: TradeExecutionDetails): void {
+    const payload = {
+      timestamp: new Date().toISOString(),
+      event: 'TRADE_ENTRY',
+      ...trade
+    };
+
+    if (this.isJsonFormat) {
+      console.log(JSON.stringify(payload));
+    } else {
+      this.info(`✅ Position ouverte sur ${trade.exchange} (${trade.marketSymbol})`, {
+        prix: trade.entryPrice,
+        montant: trade.amount,
+        mode: trade.mode,
+        ordre: trade.orderId || 'simulation'
+      });
+    }
+  }
+
+  /**
+   * Log la fermeture d'une position et les performances.
+   */
+  logTradeExit(trade: TradeExecutionDetails): void {
+    const payload = {
+      timestamp: new Date().toISOString(),
+      event: 'TRADE_EXIT',
+      ...trade
+    };
+
+    if (this.isJsonFormat) {
+      console.log(JSON.stringify(payload));
+    } else {
+      this.info(`🏁 Position fermée sur ${trade.exchange} (${trade.marketSymbol})`, {
+        entree: trade.entryPrice,
+        sortie: trade.exitPrice,
+        profit: trade.profit,
+        profitPercent: trade.profitPercent,
+        ordre: trade.orderId || 'simulation'
+      });
+    }
+  }
+
+  /**
+   * Log une erreur d'exécution de trade.
+   */
+  logTradeError(symbol: string, exchangeId: string, error: unknown): void {
+    if (this.isJsonFormat) {
+      console.log(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        event: 'TRADE_ERROR',
+        symbol,
+        exchange: exchangeId,
+        error: error instanceof Error ? error.message : String(error)
+      }));
+    } else {
+      this.error(`❌ Erreur de trading sur ${exchangeId} pour ${symbol}`, error);
     }
   }
 

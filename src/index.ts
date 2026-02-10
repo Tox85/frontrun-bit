@@ -6,12 +6,14 @@ import { Logger } from './modules/logger';
 import { BotConfig, DetectionMetrics } from './types';
 import * as cheerio from 'cheerio';
 import * as http from 'http';
+import { TradingEngine } from './modules/trading';
 
 class BithumbBot {
   private config: BotConfig;
   private fetcher: AnnouncementFetcher;
   private notifier: TelegramNotifier;
   private logger: Logger;
+  private tradingEngine: TradingEngine;
   private lastSeenId: string | null = null;
   private lastDetectionAt: string | null = null;
   private isRunning: boolean = false;
@@ -19,6 +21,8 @@ class BithumbBot {
   private detectionCount: number = 0;
   private errorCount: number = 0;
   private startTime: number = Date.now();
+  private statusInterval: NodeJS.Timeout | null = null;
+  private healthServer?: http.Server;
   private performanceMetrics: {
     totalLatency: number;
     totalParseTime: number;
@@ -35,9 +39,10 @@ class BithumbBot {
       this.fetcher = new AnnouncementFetcher(this.config);
       this.notifier = new TelegramNotifier(this.config);
       this.logger = new Logger(this.config);
+      this.tradingEngine = new TradingEngine(this.config.trading, this.logger);
     } catch (error) {
       console.error('Erreur lors de l\'initialisation du bot:', error);
-      process.exit(1);
+      throw error;
     }
   }
 
@@ -70,8 +75,24 @@ class BithumbBot {
       // Initialiser le lastSeenId
       await this.initializeLastSeenId();
 
+      // Préparer les exchanges pour réduire la latence de trading
+      try {
+        await this.tradingEngine.prepare();
+      } catch (error) {
+        this.logger.warn(`⚠️ Préparation du moteur de trading échouée: ${error instanceof Error ? error.message : String(error)}`);
+      }
+
       this.isRunning = true;
       this.logger.info('🚀 Bot démarré avec succès');
+
+      const isTestEnv = process.env.NODE_ENV === 'test';
+
+      if (isTestEnv) {
+        this.logger.debug('Mode test: exécution d\'un seul cycle de polling');
+        await this.pollingCycle();
+        this.isRunning = false;
+        return;
+      }
 
       // Message de démarrage supprimé - Telegram réservé aux détections uniquement
 
@@ -98,10 +119,10 @@ class BithumbBot {
     try {
       this.logger.info('🔍 Initialisation du lastSeenId...');
       const data = await this.fetcher.fetchAnnouncements();
-      
+
       if (data.announcements && data.announcements.length > 0) {
         const newestId = data.announcements[0].id;
-        
+
                 // Initialisation propre du lastSeenId
                 if (!this.lastSeenId && newestId) {
                   this.lastSeenId = newestId;
@@ -274,6 +295,9 @@ class BithumbBot {
       // Logger l'événement
       this.logger.logDetection(detectionEvent);
 
+      // Déclencher le trading sans bloquer la boucle principale
+      void this.triggerTrading(analysis.symbol);
+
       // Vérifier si l'envoi Telegram a réussi
       if (!telegramResult.success) {
         this.logger.error(`Échec de l'envoi Telegram: ${telegramResult.error}`);
@@ -335,7 +359,7 @@ class BithumbBot {
    * Endpoint /healthz pour monitoring
    */
   private startHealthServer(): void {
-    const server = http.createServer((req, res) => {
+    this.healthServer = http.createServer((req, res) => {
       if (req.url === "/healthz") {
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({
@@ -352,7 +376,7 @@ class BithumbBot {
     });
 
     const port = process.env.PORT || 3000;
-    server.listen(port, () => {
+    this.healthServer.listen(port, () => {
       console.log(`🏥 Health server started on port ${port}`);
     });
   }
@@ -361,11 +385,21 @@ class BithumbBot {
    * Log périodique toutes les 30s
    */
   private startStatusCheckInterval(): void {
-    setInterval(async () => {
+    if (process.env.NODE_ENV === 'test') {
+      return;
+    }
+
+    if (this.statusInterval) {
+      clearInterval(this.statusInterval);
+    }
+
+    this.statusInterval = setInterval(async () => {
       try {
-        // Utiliser le Worker Cloudflare comme le bot principal
-        const proxyUrl = `${this.config.proxyUrl}?url=${encodeURIComponent(this.config.targetUrl)}`;
-        const res = await fetch(proxyUrl);
+        const fetchUrl = this.config.useProxy && this.config.proxyUrl
+          ? `${this.config.proxyUrl}?url=${encodeURIComponent(this.config.targetUrl)}`
+          : this.config.targetUrl;
+
+        const res = await fetch(fetchUrl);
         const html = await res.text();
         const $ = cheerio.load(html);
 
@@ -397,13 +431,42 @@ class BithumbBot {
   async shutdown(reason: string): Promise<void> {
     this.logger.logShutdown(reason);
     this.isRunning = false;
-    
+
+    if (this.statusInterval) {
+      clearInterval(this.statusInterval);
+      this.statusInterval = null;
+    }
+
+    if (this.healthServer) {
+      await new Promise<void>((resolve) => {
+        this.healthServer?.close(() => resolve());
+      });
+      this.healthServer = undefined;
+    }
+
     // Afficher les métriques finales
     this.logPerformanceMetrics();
-    
+
     // Message d'arrêt supprimé - Telegram réservé aux détections uniquement
-    
-    process.exit(0);
+
+    if (process.env.NODE_ENV !== 'test') {
+      process.exit(0);
+    }
+  }
+
+  /**
+   * Déclenche l'exécution de trading pour un symbole donné
+   */
+  private async triggerTrading(symbol: string | null): Promise<void> {
+    if (!symbol) {
+      return;
+    }
+
+    try {
+      await this.tradingEngine.executeTrade(symbol);
+    } catch (error) {
+      this.logger.logTradeError(symbol, 'engine', error);
+    }
   }
 }
 

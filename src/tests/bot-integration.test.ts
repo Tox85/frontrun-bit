@@ -23,7 +23,29 @@ describe('BithumbBot Integration Tests', () => {
       targetUrl: 'https://feed.bithumb.com/notice?category=9&page=1',
       useProxy: false,
       logLevel: 'debug',
-      logFormat: 'text'
+      logFormat: 'text',
+      trading: {
+        liveMode: false,
+        tradingBudget: 0,
+        leverage: 1,
+        stopLossPercent: 3,
+        takeProfitPercent: 0,
+        maxHoldTimeMs: 0,
+        timeBeforeExecutionSec: 0,
+        quoteCurrencies: ['USDT', 'USDC'],
+        exchanges: {
+          bybit: {
+            enabled: false,
+            id: 'bybit',
+            credentials: {}
+          },
+          hyperliquid: {
+            enabled: false,
+            id: 'hyperliquid',
+            credentials: {}
+          }
+        }
+      }
     };
 
     // Mock du fetcher
@@ -44,6 +66,7 @@ describe('BithumbBot Integration Tests', () => {
     (TelegramNotifier as jest.Mock).mockImplementation(() => mockNotifier);
 
     // Configuration des mocks par défaut
+    mockFetcher.fetchAnnouncements.mockResolvedValue(mockAnnouncementData.initial);
     mockNotifier.testConnection.mockResolvedValue({ success: true });
     mockNotifier.sendStatusMessage.mockResolvedValue(true);
     mockNotifier.sendNewTokenAlert.mockResolvedValue({ success: true, responseTime: 50 });
@@ -61,12 +84,17 @@ describe('BithumbBot Integration Tests', () => {
     test('devrait échouer avec une configuration invalide', () => {
       // Mock d'une configuration invalide
       const originalEnv = process.env;
+      const originalNodeEnv = process.env.NODE_ENV;
+      const originalAllowTestDefaults = process.env.ALLOW_TEST_DEFAULTS;
       process.env = { ...originalEnv };
       delete process.env.TELEGRAM_BOT_TOKEN;
+      process.env.ALLOW_TEST_DEFAULTS = 'false';
 
       expect(() => new BithumbBot()).toThrow();
 
       process.env = originalEnv;
+      process.env.NODE_ENV = originalNodeEnv;
+      process.env.ALLOW_TEST_DEFAULTS = originalAllowTestDefaults;
     });
   });
 
@@ -90,7 +118,7 @@ describe('BithumbBot Integration Tests', () => {
         'EUL',
         '오일러(EUL) 원화 마켓 추가',
         expect.any(String),
-        undefined
+        expect.any(Number)
       );
 
       // Arrêter le bot
@@ -113,13 +141,13 @@ describe('BithumbBot Integration Tests', () => {
         'NEW1',
         '새로운토큰1(NEW1) 원화 마켓 추가',
         expect.any(String),
-        undefined
+        expect.any(Number)
       );
       expect(mockNotifier.sendNewTokenAlert).toHaveBeenCalledWith(
         'NEW2',
         '새로운토큰2(NEW2) 원화 마켓 추가',
         expect.any(String),
-        undefined
+        expect.any(Number)
       );
 
       await bot.shutdown('Test terminé');
